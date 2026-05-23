@@ -17,8 +17,8 @@ from degrade_fastq import DegradeParams, degrade_chunk
 
 SAMPLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample_data")
 FILES = {
-    "R1": os.path.join(SAMPLE_DIR, "2629LEI-2_S2_L001_R1_001.fastq.gz"),
-    "R2": os.path.join(SAMPLE_DIR, "2629LEI-2_S2_L001_R2_001.fastq.gz"),
+    "R1": os.path.join(SAMPLE_DIR, "sample_50k_R1.fastq.gz"),
+    "R2": os.path.join(SAMPLE_DIR, "sample_50k_R2.fastq.gz"),
 }
 
 # Conservative noise params — values don't meaningfully affect allocation

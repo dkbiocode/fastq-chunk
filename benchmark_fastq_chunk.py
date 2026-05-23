@@ -103,7 +103,7 @@ def run_benchmark(
 def main() -> None:
     default_input = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        "sample_data", "2629LEI-2_S2_L001_R1_001.fastq.gz",
+        "sample_data", "sample_50k_R1.fastq.gz",
     )
 
     parser = argparse.ArgumentParser(description=__doc__,
