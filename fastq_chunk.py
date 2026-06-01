@@ -3,7 +3,7 @@ import collections
 import logging
 import os
 import tracemalloc
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable, Iterator, TypeVar
 
@@ -115,16 +115,22 @@ def run_parallel(
     *,
     chunk_size: int,
     n_workers: int = 4,
+    executor_class: Callable[..., Executor] = ThreadPoolExecutor,
 ) -> Iterator[T]:
-    """Dispatch chunks to worker threads, yielding results in submission order.
+    """Dispatch chunks to a pool, yielding results in submission order.
 
     Sliding-window: at most n_workers chunks are in memory at once, so the
     caller's memory budget (used to calculate chunk_size) is respected.
 
     worker signature: (chunk: list[FastqRecord], chunk_idx: int) -> T
-    Bind extra context (params, output paths, etc.) with a lambda or partial.
+    Bind extra context (params, output paths, etc.) with functools.partial.
+
+    executor_class: ThreadPoolExecutor (default, I/O-bound) or
+        ProcessPoolExecutor (CPU-bound). With ProcessPoolExecutor, worker
+        must be picklable — module-level functools.partial works; lambdas
+        and closures do not.
     """
-    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+    with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, chunk in enumerate(iter_chunks(fastq_path, chunk_size)):
             pending.append(pool.submit(worker, chunk, idx))

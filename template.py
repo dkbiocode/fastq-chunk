@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import tempfile
+from concurrent.futures import ProcessPoolExecutor
 
 from fastq_chunk import FastqRecord, get_read_dimensions, calculate_chunk_size, run_parallel
 
@@ -42,7 +43,10 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         worker = functools.partial(process_chunk, temp_dir=tmp)
-        chunk_paths = list(run_parallel(INPUT_PATH, worker, chunk_size=chunk_size, n_workers=N_WORKERS))
+        chunk_paths = list(run_parallel(INPUT_PATH, worker, 
+                                        chunk_size=chunk_size, 
+                                        n_workers=N_WORKERS, 
+                                        executor_class = ProcessPoolExecutor))
         with open(OUTPUT_PATH, "wb") as fout:
             for path in chunk_paths:
                 with open(path, "rb") as fin:
