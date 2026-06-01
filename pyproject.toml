@@ -12,4 +12,4 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/meekrob/fastq_chunk"
+Repository = "https://github.com/dkbiocode/fastq_chunk"
