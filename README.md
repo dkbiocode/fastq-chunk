@@ -55,13 +55,13 @@ def your_func(chunks, idx, *, your_arg1, your_arg2)...
 
 Then use functools to partially call the function with your arguments, returning a new function that only takes the chunk of fastq and chunk index. 
 
-```
+```python
 worker = functools.partial(your_func, your_arg1 = someValue, your_arg2 = someOtherValue) 
 ```
 
 The new function `worker` is now ready to be passed into `run_parallel`, where the chunk and chunk index will be set during parallel processing. 
 
-```
+```python
 results = list(fastq_chunk.run_parallel(infile_fq_gz, worker, chunksize, threads))  
 ```
 
