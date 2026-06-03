@@ -150,3 +150,22 @@ def run_parallel(
                 yield pending.popleft().result()
         while pending:
             yield pending.popleft().result()
+
+def run_parallel_paired(
+    fastq_path1: str | os.PathLike,
+fastq_path2: str | os.PathLike,
+    worker: Callable[[list[FastqRecord], list[FastqRecord], int], T],
+    *,
+    chunk_size: int,
+    n_workers: int = 4,
+    executor_class: Callable[..., Executor] = ThreadPoolExecutor,
+) -> Iterator[T]:
+
+    with executor_class(max_workers=n_workers) as pool:
+        pending: collections.deque = collections.deque()
+        for idx, (chunk_l, chunk_r) in enumerate(iter_chunks_paired(fastq_path1,fastq_path2, chunk_size)):
+            pending.append(pool.submit(worker, chunk_l, chunk_r, idx))
+            while len(pending) >= n_workers:
+                yield pending.popleft().result()
+        while pending:
+            yield pending.popleft().result()
