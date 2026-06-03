@@ -39,6 +39,18 @@ def iter_chunks(
     if chunk:
         yield chunk
 
+def iter_chunks_paired(
+    fastq_path1: str | os.PathLike,
+    fastq_path2: str | os.PathLike,
+    chunk_size: int,
+) -> Iterator[Tuple[list[FastqRecord], list[FastqRecord]]]:
+    """Yield consecutive pairs of fixed-size lists of reads from paired fastq files.
+
+    For paired-end coordination, zip two iter_chunks calls at the caller.
+    """
+    for chunk_f, chunk_r in zip(iter_chunks(fastq_path1, chunk_size), iter_chunks(fastq_path2, chunk_size)):
+    yield chunk_f, chunk_r
+
 
 def get_read_dimensions(
     fastq_path: str | os.PathLike,
