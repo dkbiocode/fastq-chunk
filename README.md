@@ -49,13 +49,18 @@ Return types can be extended to return multiple paths or data, for more sophisti
 
 ```python
 import fastq_chunk
+import shutil
+import os
+import gzip
 
 def readthrough(chunk, idx, tmpdir):
-    Tmpfile = ""
-    with gzip.open(Tmpfile, "wb") as out:
+    temp_path = os.path.join(tmpdir, f"chunk_{chunk_idx:06d}.fastq.gz")
+    with gzip.open(temp_path, "wt") as out:
         for read in chunk:
             # work here
             out.write(...)
+
+    return temp_path
 
 def main():
    # Input 
