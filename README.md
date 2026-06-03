@@ -21,12 +21,8 @@ channels:
   - bioconda
 dependencies:
   - python=3.13
-  - openai
   - numpy
   - dnaio
-  - pip
-  - pandas
-  - matplotlib
   - pip:
     - git+https://github.com/dkbiocode/fastq-chunk.git
 
