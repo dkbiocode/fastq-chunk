@@ -15,5 +15,19 @@ You can install with pip, but not all dependencies may be resolved correctly.
 Example environment 
 
 ```
-Deps
+name: fq-chunk
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - openai
+  - numpy
+  - dnaio
+  - pip
+  - pandas
+  - matplotlib
+  - pip:
+    - git+https://github.com/dkbiocode/fastq-chunk.git
+
 ```
