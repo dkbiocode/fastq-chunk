@@ -75,9 +75,9 @@ def main():
        worker = functools.partial(readthrough, tempdir=tmpdir) 
        results = list(run_parallel(fq_gz, worker, chunksize, threads)) 
 
-   # concatenate output files
-   with open("out.fastq.gz", "wb") as outf:
-       for pth in results:
-          with open(pth, "rb") as fin:
-              shutil.copyfileobj(fin,outf)
+       # concatenate output files
+       with open("out.fastq.gz", "wb") as outf:
+           for pth in results:
+              with open(pth, "rb") as fin:
+                  shutil.copyfileobj(fin,outf)
 ```
