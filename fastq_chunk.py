@@ -5,7 +5,7 @@ import os
 import tracemalloc
 from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Callable, Iterator, TypeVar
+from typing import Callable, Iterator, TypeVar, Tuple
 
 import dnaio
 
@@ -44,12 +44,22 @@ def iter_chunks_paired(
     fastq_path2: str | os.PathLike,
     chunk_size: int,
 ) -> Iterator[Tuple[list[FastqRecord], list[FastqRecord]]]:
-    """Yield consecutive pairs of fixed-size lists of reads from paired fastq files.
+    """Yield (r1_chunk, r2_chunk) pairs from paired fastq files, keeping reads synchronized.
 
-    For paired-end coordination, zip two iter_chunks calls at the caller.
+    Uses dnaio's paired mode, which validates read-name pairing on every record and
+    raises immediately if the files are out of sync or have different read counts.
     """
-    for chunk_f, chunk_r in zip(iter_chunks(fastq_path1, chunk_size), iter_chunks(fastq_path2, chunk_size)):
-    yield chunk_f, chunk_r
+    chunk1: list[FastqRecord] = []
+    chunk2: list[FastqRecord] = []
+    with dnaio.open(fastq_path1, fastq_path2) as fin:
+        for rec1, rec2 in fin:
+            chunk1.append(FastqRecord(rec1.name, rec1.sequence, rec1.qualities))
+            chunk2.append(FastqRecord(rec2.name, rec2.sequence, rec2.qualities))
+            if len(chunk1) >= chunk_size:
+                yield chunk1, chunk2
+                chunk1, chunk2 = [], []
+    if chunk1:
+        yield chunk1, chunk2
 
 
 def get_read_dimensions(
@@ -153,14 +163,26 @@ def run_parallel(
 
 def run_parallel_paired(
     fastq_path1: str | os.PathLike,
-fastq_path2: str | os.PathLike,
+    fastq_path2: str | os.PathLike,
     worker: Callable[[list[FastqRecord], list[FastqRecord], int], T],
     *,
     chunk_size: int,
     n_workers: int = 4,
     executor_class: Callable[..., Executor] = ThreadPoolExecutor,
 ) -> Iterator[T]:
+    """Dispatch paired-end chunks to a pool, yielding results in submission order.
 
+    Sliding-window: at most n_workers chunk-pairs are in memory at once, so the
+    caller's memory budget (used to calculate chunk_size) is respected.
+
+    worker signature: (r1_chunk: list[FastqRecord], r2_chunk: list[FastqRecord], chunk_idx: int) -> T
+    Bind extra context (params, output paths, etc.) with functools.partial.
+
+    executor_class: ThreadPoolExecutor (default, I/O-bound) or
+        ProcessPoolExecutor (CPU-bound). With ProcessPoolExecutor, worker
+        must be picklable — module-level functools.partial works; lambdas
+        and closures do not.
+    """
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, (chunk_l, chunk_r) in enumerate(iter_chunks_paired(fastq_path1,fastq_path2, chunk_size)):
