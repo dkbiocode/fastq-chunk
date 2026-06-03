@@ -1,0 +1,33 @@
+benchmark run: 2026-06-03T18:37:32Z
+host: psychotronic  |  CPUs: 10  |  Python: Python 3.13.1
+executor: ProcessPoolExecutor
+
+
+=== single-end: threads=4, mem_per_thread=40 MB ===
+Input:       sample_50k_R1.fastq.gz  (6.5 MB)
+read_len:    251 bp  |  mem_per_read: 1,619 bytes  |  chunk_size: 15,544 reads
+(MB/s includes gzip recompression; run 1 may be slower due to OS cache warm-up)
+
+  Run 1/3:  4 chunk(s)   2.01 s  (3.2 MB/s)
+  Run 2/3:  4 chunk(s)   1.99 s  (3.3 MB/s)
+  Run 3/3:  4 chunk(s)   1.99 s  (3.3 MB/s)
+
+  min   1.99 s   3.3 MB/s
+  mean  2.00 s   3.3 MB/s
+  max   2.01 s   3.2 MB/s
+
+
+=== paired-end: threads=4, mem_per_thread=40 MB ===
+R1:          sample_50k_R1.fastq.gz  (6.5 MB)
+R2:          sample_50k_R2.fastq.gz  (7.9 MB)
+read_len:    251 bp  |  mem_per_read: 1,619 bytes  |  chunk_size: 15,544 reads
+(MB/s is R1+R2 combined; includes gzip recompression; run 1 may be slower due to OS cache warm-up)
+
+  Run 1/3:  4 chunk pair(s)   3.31 s  (4.3 MB/s combined)
+  Run 2/3:  4 chunk pair(s)   3.34 s  (4.3 MB/s combined)
+  Run 3/3:  4 chunk pair(s)   3.32 s  (4.3 MB/s combined)
+
+  min   3.31 s   4.3 MB/s
+  mean  3.32 s   4.3 MB/s
+  max   3.34 s   4.3 MB/s
+
