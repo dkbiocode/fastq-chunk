@@ -53,7 +53,7 @@ import shutil
 import os
 import gzip
 
-def readthrough(chunk, idx, tmpdir):
+def readthrough(chunk, idx, *, tmpdir):
     temp_path = os.path.join(tmpdir, f"chunk_{chunk_idx:06d}.fastq.gz")
     with gzip.open(temp_path, "wt") as out:
         for read in chunk:
@@ -63,13 +63,16 @@ def readthrough(chunk, idx, tmpdir):
     return temp_path
 
 def main():
+   # workers, memory 
+   ... 
    # Input 
    fq_gz = ... 
    # get chunk size estimate from file
-   chunksize = ... 
+   chunksize = estimate_chunk_size(fq_gz) 
 
    # launch thread or process pool
-   ... 
+    worker = functools.partial(readthrough, tempdir=tmpdir) 
+   results = list(run_parallel(fq_gz, worker, chunksize, threads)) 
 
    # concatenate output files
    with open("out.fastq.gz", "wb") as outf:
