@@ -68,12 +68,12 @@ def main():
    # Input 
    fq_gz = ... 
    # get chunk size estimate from file
-   chunksize = estimate_chunk_size(fq_gz) 
+   chunksize = fastq_chunk.estimate_chunk_size(fq_gz) 
 
    with tempfile.TemporaryDirectory() as tmpdir:
        # launch thread or process pool
        worker = functools.partial(readthrough, tempdir=tmpdir) 
-       results = list(run_parallel(fq_gz, worker, chunksize, threads)) 
+       results = list(fastq_chunk.run_parallel(fq_gz, worker, chunksize, threads)) 
 
        # concatenate output files
        with open("out.fastq.gz", "wb") as outf:
