@@ -17,14 +17,12 @@ description = "Python library for processing fastq files in a multithreaded envi
 readme = "README.md"
 
 [project.urls]
+Repository = "https://github.com/dkbiocode/fastq-chunk"
 Homepage = "https://github.com/dkbiocode/fastq-chunk"
 Issues = "https://github.com/dkbiocode/fastq-chunk/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "ruff>=0.4"]
-
-[project.urls]
-Repository = "https://github.com/dkbiocode/fastq-chunk"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
