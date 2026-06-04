@@ -24,7 +24,7 @@ Issues = "https://github.com/dkbiocode/fastq-chunk/issues"
 dev = ["pytest>=7.4", "ruff>=0.4"]
 
 [project.urls]
-Repository = "https://github.com/dkbiocode/fastq_chunk"
+Repository = "https://github.com/dkbiocode/fastq-chunk"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
