@@ -116,7 +116,7 @@ def run_benchmark(
     print(f"\n=== single-end: threads={threads}, mem_per_thread={mem_per_thread_mb} MB ===")
     print(f"Input:       {os.path.basename(input_path)}  ({input_mb:.1f} MB)")
     print(f"read_len:    {read_len} bp  |  mem_per_read: {mem_per_read:,} bytes  |  chunk_size: {chunk_size:,} reads")
-    print(f"(MB/s includes gzip recompression; run 1 may be slower due to OS cache warm-up)")
+    print("(MB/s includes gzip recompression; run 1 may be slower due to OS cache warm-up)")
     print()
 
     elapsed_times: list[float] = []
@@ -162,7 +162,7 @@ def run_benchmark_paired(
     print(f"R1:          {os.path.basename(r1_path)}  ({r1_mb:.1f} MB)")
     print(f"R2:          {os.path.basename(r2_path)}  ({r2_mb:.1f} MB)")
     print(f"read_len:    {read_len} bp  |  mem_per_read: {mem_per_read:,} bytes  |  chunk_size: {chunk_size:,} reads")
-    print(f"(MB/s is R1+R2 combined; includes gzip recompression; run 1 may be slower due to OS cache warm-up)")
+    print("(MB/s is R1+R2 combined; includes gzip recompression; run 1 may be slower due to OS cache warm-up)")
     print()
 
     elapsed_times: list[float] = []
