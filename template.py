@@ -30,7 +30,7 @@ def process_chunk(
         for rec in chunk:
             # replace with your processing
             fout.write(f"@{rec.name}\n{rec.sequence}\n+\n{rec.qualities}\n")
-        
+
     return out_path
 
 
@@ -43,9 +43,9 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         worker = functools.partial(process_chunk, temp_dir=tmp)
-        chunk_paths = list(run_parallel(INPUT_PATH, worker, 
-                                        chunk_size=chunk_size, 
-                                        n_workers=N_WORKERS, 
+        chunk_paths = list(run_parallel(INPUT_PATH, worker,
+                                        chunk_size=chunk_size,
+                                        n_workers=N_WORKERS,
                                         executor_class = ProcessPoolExecutor))
         with open(OUTPUT_PATH, "wb") as fout:
             for path in chunk_paths:
