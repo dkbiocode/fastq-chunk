@@ -62,7 +62,8 @@ def extract_codes_from_chunk_pair(F1:list[FastqRecord], F2:list[FastqRecord], ch
 
         # split header info
         try:
-            instrument,run,flowcell,lane,tile,x,y = r1.name.split(':')
+            position_info = r1.name.split()[1]
+            instrument,run,flowcell,lane,tile,x,y = position_info.split(':')
         except:
             logging.error(f"Couldn't parse header in {chunk_ix=}; {read_ix=}; {r1.name}")
             raise ValueError
@@ -96,7 +97,7 @@ def main() -> None:
     _, _, mem_per_read = dims
     chunk_size = calculate_chunk_size(mem_per_read, MEM_PER_THREAD_MB)
 
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(dir=os.getenv('SLURM_SCRATCH')) as tmp:
         worker = functools.partial(extract_codes_from_chunk_pair, temp_dir=tmp)
         chunk_paths = list(
             run_parallel_paired(INPUT_PATH_R1, INPUT_PATH_R2, 
