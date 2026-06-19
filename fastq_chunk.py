@@ -171,6 +171,7 @@ def run_parallel(
     buffer_size: int = 4 * 1024 * 1024,
     n_workers: int = 4,
     executor_class: Callable[..., Executor] = ThreadPoolExecutor,
+    log_interval: float = 10.0,
 ) -> Iterator[T]:
     """Dispatch byte chunks to a pool, yielding results in submission order.
 
@@ -185,19 +186,27 @@ def run_parallel(
         ProcessPoolExecutor (CPU-bound). With ProcessPoolExecutor, worker
         must be picklable — module-level functools.partial works; lambdas
         and closures do not.
+    log_interval: minimum seconds between DEBUG log lines (default 10).
     """
     t0 = time.perf_counter()
+    last_log = t0 - log_interval  # ensure first event is always logged
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, chunk in enumerate(iter_byte_chunks(fastq_path, buffer_size)):
             pending.append(pool.submit(worker, chunk, idx))
-            logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", time.perf_counter() - t0, idx, len(pending))
+            now = time.perf_counter()
+            if now - last_log >= log_interval:
+                logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", now - t0, idx, len(pending))
+                last_log = now
             while len(pending) >= n_workers:
                 yield pending.popleft().result()
-                logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
+                now = time.perf_counter()
+                if now - last_log >= log_interval:
+                    logger.debug("t=%.3fs  chunk %d drained    in_flight=%d", now - t0, idx, len(pending))
+                    last_log = now
         while pending:
             yield pending.popleft().result()
-            logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
+        logger.debug("t=%.3fs  done  %d chunks total", time.perf_counter() - t0, idx + 1)
 
 def run_parallel_paired(
     fastq_path1: str | os.PathLike,
@@ -207,6 +216,7 @@ def run_parallel_paired(
     buffer_size: int = 4 * 1024 * 1024,
     n_workers: int = 4,
     executor_class: Callable[..., Executor] = ProcessPoolExecutor,
+    log_interval: float = 10.0,
 ) -> Iterator[T]:
     """Dispatch paired-end byte chunks to a pool, yielding results in submission order.
 
@@ -221,18 +231,26 @@ def run_parallel_paired(
         ThreadPoolExecutor (for I/O-bound user code). With ProcessPoolExecutor,
         worker must be picklable — module-level functools.partial works;
         lambdas and closures do not.
+    log_interval: minimum seconds between DEBUG log lines (default 10).
     """
     t0 = time.perf_counter()
+    last_log = t0 - log_interval  # ensure first event is always logged
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, (chunk1_bytes, chunk2_bytes) in enumerate(
             iter_byte_chunks_paired(fastq_path1, fastq_path2, buffer_size)
         ):
             pending.append(pool.submit(worker, chunk1_bytes, chunk2_bytes, idx))
-            logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", time.perf_counter() - t0, idx, len(pending))
+            now = time.perf_counter()
+            if now - last_log >= log_interval:
+                logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", now - t0, idx, len(pending))
+                last_log = now
             while len(pending) >= n_workers:
                 yield pending.popleft().result()
-                logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
+                now = time.perf_counter()
+                if now - last_log >= log_interval:
+                    logger.debug("t=%.3fs  chunk %d drained    in_flight=%d", now - t0, idx, len(pending))
+                    last_log = now
         while pending:
             yield pending.popleft().result()
-            logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
+        logger.debug("t=%.3fs  done  %d chunks total", time.perf_counter() - t0, idx + 1)
