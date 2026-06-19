@@ -3,6 +3,7 @@ import collections
 import io
 import logging
 import os
+import time
 import tracemalloc
 from concurrent.futures import Executor, ThreadPoolExecutor, ProcessPoolExecutor
 from dataclasses import dataclass
@@ -185,14 +186,18 @@ def run_parallel(
         must be picklable — module-level functools.partial works; lambdas
         and closures do not.
     """
+    t0 = time.perf_counter()
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, chunk in enumerate(iter_byte_chunks(fastq_path, buffer_size)):
             pending.append(pool.submit(worker, chunk, idx))
+            logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", time.perf_counter() - t0, idx, len(pending))
             while len(pending) >= n_workers:
                 yield pending.popleft().result()
+                logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
         while pending:
             yield pending.popleft().result()
+            logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
 
 def run_parallel_paired(
     fastq_path1: str | os.PathLike,
@@ -217,13 +222,17 @@ def run_parallel_paired(
         worker must be picklable — module-level functools.partial works;
         lambdas and closures do not.
     """
+    t0 = time.perf_counter()
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
         for idx, (chunk1_bytes, chunk2_bytes) in enumerate(
             iter_byte_chunks_paired(fastq_path1, fastq_path2, buffer_size)
         ):
             pending.append(pool.submit(worker, chunk1_bytes, chunk2_bytes, idx))
+            logger.debug("t=%.3fs  chunk %d submitted  in_flight=%d", time.perf_counter() - t0, idx, len(pending))
             while len(pending) >= n_workers:
                 yield pending.popleft().result()
+                logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
         while pending:
             yield pending.popleft().result()
+            logger.debug("t=%.3fs  chunk drained    in_flight=%d", time.perf_counter() - t0, len(pending))
