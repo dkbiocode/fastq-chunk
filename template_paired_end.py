@@ -10,7 +10,7 @@ import pandas as pd
 import dnaio
 import io
 
-from fastq_chunk import FastqRecord, get_read_dimensions, calculate_chunk_size, run_parallel_paired
+from fastq_chunk import get_read_dimensions, run_parallel_paired
 
 wnv_pattern = re.compile("CT.AC.GT.AC.GT.AC.GC.GC.AC.CT.CT.")
 
@@ -75,7 +75,7 @@ def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chun
                         viral_quality,  cell_quality,  umi_quality,         # qualities
                         min_cell_quality,min_umi_quality,min_viral_quality, # min qualities
                         run,flowcell,lane,tile,x,y                          # location
-                    ] 
+                    ]
                     )
                 )
             )
@@ -88,10 +88,9 @@ def main() -> None:
     INPUT_PATH_R2 = sys.argv[2]
     OUTPUT_PATH = sys.argv[3]
     N_WORKERS = int(sys.argv[4])
-    MEM_PER_THREAD_MB = 3084
 
     dims = get_read_dimensions(INPUT_PATH_R1)
-    if dims is None: 
+    if dims is None:
         raise SystemExit(f"no reads in {INPUT_PATH_R1}")
 
     with tempfile.TemporaryDirectory(dir=os.getenv('SLURM_SCRATCH')) as tmp:
