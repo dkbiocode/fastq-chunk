@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import functools
-import gzip
-import shutil
 import logging
 import os
 import sys
@@ -17,8 +15,7 @@ from fastq_chunk import FastqRecord, get_read_dimensions, calculate_chunk_size, 
 wnv_pattern = re.compile("CT.AC.GT.AC.GT.AC.GC.GC.AC.CT.CT.")
 
 def min_qual(s): # s - string of quality symbols, like "FFFFF:FFF,"
-    l = list(s)
-    q = list(map(ord,l)) # ord() returns the ASCII value for a character. See ASCII character table for more info.
+    q = list(map(ord,list(s))) # ord() returns the ASCII value for a character. See ASCII character table for more info.
     return min(q) - 33   # Phred33 is the ascii value minus 33.
 
 def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chunk_ix:int,
@@ -33,7 +30,7 @@ def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chun
                "viral_quality",  "cell_quality",  "umi_quality",         # qualities
                "min_cell_quality","min_umi_quality","min_viral_quality", # min qualities
                "run","flowcell","lane","tile","x","y"                    # location
-               ] 
+               ]
     data_rows = []
 
     with dnaio.open(io.BytesIO(chunk1_bytes), io.BytesIO(chunk2_bytes)) as reader:
@@ -51,14 +48,13 @@ def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chun
             # get info from the sequences
             viral_sequence = r2.sequence[s:e]
             viral_quality = r2.qualities[s:e]
-            
             # extract barcodes by given positions (0-based; end exclusive)
             cell_sequence = r1.sequence[:15]
             umi_sequence  = r1.sequence[15:26]
             cell_quality = r1.qualities[:15]
             umi_quality  = r1.qualities[15:26]
 
-            # minimum qualities 
+            # minimum qualities
             min_cell_quality = min_qual(cell_quality)
             min_umi_quality = min_qual(umi_quality)
             min_viral_quality = min_qual(viral_quality)
@@ -67,13 +63,13 @@ def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chun
             try:
                 position_info = r1.name.split()[1]
                 instrument,run,flowcell,lane,tile,x,y = position_info.split(':')
-            except:
+            except ValueError:
                 logging.error(f"Couldn't parse header in {chunk_ix=}; {read_ix=}; {r1.name}")
-                raise ValueError
-            
+                raise
+
             data_rows.append(
                 dict(
-                    zip(COLUMNS, # list values in the same order as the COLUMNS  
+                    zip(COLUMNS, # list values in the same order as the COLUMNS
                     [
                         viral_sequence, cell_sequence, umi_sequence,        # sequences
                         viral_quality,  cell_quality,  umi_quality,         # qualities
@@ -95,19 +91,17 @@ def main() -> None:
     MEM_PER_THREAD_MB = 3084
 
     dims = get_read_dimensions(INPUT_PATH_R1)
-    if dims is None: raise SystemExit(f"no reads in {INPUT_PATH_R1}")
-    
-    _, _, mem_per_read = dims
-    chunk_size = calculate_chunk_size(mem_per_read, MEM_PER_THREAD_MB)
+    if dims is None: 
+        raise SystemExit(f"no reads in {INPUT_PATH_R1}")
 
     with tempfile.TemporaryDirectory(dir=os.getenv('SLURM_SCRATCH')) as tmp:
         worker = functools.partial(extract_codes_from_chunk_pair, temp_dir=tmp)
         chunk_paths = list(
-            run_parallel_paired(INPUT_PATH_R1, INPUT_PATH_R2, 
+            run_parallel_paired(INPUT_PATH_R1, INPUT_PATH_R2,
                     worker,
                     n_workers=N_WORKERS,
                     executor_class = ProcessPoolExecutor))
-        
+
 
         # merge everything before deleting tmpdir
         chunk_dfs = [pd.read_csv(chunk_path) for chunk_path in chunk_paths]

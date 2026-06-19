@@ -1,11 +1,12 @@
 from __future__ import annotations
 import collections
+import io
 import logging
 import os
 import tracemalloc
 from concurrent.futures import Executor, ThreadPoolExecutor, ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import Callable, Iterator, TypeVar, Tuple
+from typing import Callable, Iterator, TypeVar, Tuple, cast
 
 import dnaio
 import xopen
@@ -75,7 +76,7 @@ def iter_byte_chunks_paired(
     """
     with xopen.xopen(fastq_path1, "rb", threads=1) as f1, \
          xopen.xopen(fastq_path2, "rb", threads=1) as f2:
-        for chunk1_mv, chunk2_mv in dnaio.read_paired_chunks(f1, f2, buffer_size):
+        for chunk1_mv, chunk2_mv in dnaio.read_paired_chunks(cast(io.RawIOBase, f1), cast(io.RawIOBase, f2), buffer_size):
             yield bytes(chunk1_mv), bytes(chunk2_mv)
 
 
