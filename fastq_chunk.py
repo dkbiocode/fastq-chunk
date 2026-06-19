@@ -64,6 +64,20 @@ def iter_chunks_paired(
         yield chunk1, chunk2
 
 
+def iter_byte_chunks(
+    fastq_path: str | os.PathLike,
+    buffer_size: int = 4 * 1024 * 1024,
+) -> Iterator[bytes]:
+    """Yield raw FASTQ byte chunks from a single file.
+
+    Each chunk is a bytes copy of an internal memoryview, safe to pass to worker
+    processes. Workers parse the bytes themselves using dnaio.open(io.BytesIO(...)).
+    """
+    with xopen.xopen(fastq_path, "rb", threads=1) as f:
+        for chunk_mv in dnaio.read_chunks(cast(io.RawIOBase, f), buffer_size):
+            yield bytes(chunk_mv)
+
+
 def iter_byte_chunks_paired(
     fastq_path1: str | os.PathLike,
     fastq_path2: str | os.PathLike,
@@ -151,18 +165,19 @@ def calculate_chunk_size(
 
 def run_parallel(
     fastq_path: str | os.PathLike,
-    worker: Callable[[list[FastqRecord], int], T],
+    worker: Callable[[bytes, int], T],
     *,
-    chunk_size: int,
+    buffer_size: int = 4 * 1024 * 1024,
     n_workers: int = 4,
     executor_class: Callable[..., Executor] = ThreadPoolExecutor,
 ) -> Iterator[T]:
-    """Dispatch chunks to a pool, yielding results in submission order.
+    """Dispatch byte chunks to a pool, yielding results in submission order.
 
-    Sliding-window: at most n_workers chunks are in memory at once, so the
-    caller's memory budget (used to calculate chunk_size) is respected.
+    Sliding-window: at most n_workers chunks are in memory at once.
 
-    worker signature: (chunk: list[FastqRecord], chunk_idx: int) -> T
+    worker signature: (chunk_bytes: bytes, chunk_idx: int) -> T
+    Workers are responsible for parsing the bytes (e.g., with
+    dnaio.open(io.BytesIO(chunk_bytes))).
     Bind extra context (params, output paths, etc.) with functools.partial.
 
     executor_class: ThreadPoolExecutor (default, I/O-bound) or
@@ -172,7 +187,7 @@ def run_parallel(
     """
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
-        for idx, chunk in enumerate(iter_chunks(fastq_path, chunk_size)):
+        for idx, chunk in enumerate(iter_byte_chunks(fastq_path, buffer_size)):
             pending.append(pool.submit(worker, chunk, idx))
             while len(pending) >= n_workers:
                 yield pending.popleft().result()

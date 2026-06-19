@@ -1,11 +1,13 @@
 from __future__ import annotations
 import functools
+import io
 import logging
 import os
 import gzip
 import shutil
 import tempfile
 import numpy as np
+import dnaio
 from dataclasses import dataclass
 from typing import Iterable, Iterator
 
@@ -52,21 +54,22 @@ def degrade_chunk(
 
 
 def degrade_and_write_chunk(
-    chunk: list[FastqRecord],
+    chunk_bytes: bytes,
     chunk_idx: int,
     *,
     params: DegradeParams,
     temp_dir: str,
 ) -> str:
-    """Degrade quality scores in chunk and write to a numbered temp file.
+    """Degrade quality scores in a byte chunk and write to a numbered temp file.
 
     params and temp_dir are keyword-only so functools.partial can bind them,
-    leaving (chunk, chunk_idx) as the two-argument worker contract for run_parallel.
+    leaving (chunk_bytes, chunk_idx) as the two-argument worker contract for run_parallel.
     """
     rng = np.random.default_rng(params.seed + chunk_idx)
     temp_path = os.path.join(temp_dir, f"chunk_{chunk_idx:06d}.fastq.gz")
-    with gzip.open(temp_path, 'wt') as fout:
-        for rec in degrade_chunk(chunk, params, rng):
+    with dnaio.open(io.BytesIO(chunk_bytes)) as fin, gzip.open(temp_path, 'wt') as fout:
+        records = (FastqRecord(r.name, r.sequence, r.qualities) for r in fin)
+        for rec in degrade_chunk(records, params, rng):
             fout.write(f"@{rec.name}\n{rec.sequence}\n+\n{rec.qualities}\n")
     return temp_path
 
@@ -76,7 +79,7 @@ def process_streaming(
     output_path: str | os.PathLike,
     params: DegradeParams,
     *,
-    chunk_size: int,
+    buffer_size: int = 4 * 1024 * 1024,
     n_workers: int = 4,
     temp_dir: str | None = None,
 ) -> None:
@@ -94,7 +97,7 @@ def process_streaming(
             degrade_and_write_chunk, params=params, temp_dir=working_dir
         )
         temp_paths = list(
-            run_parallel(input_path, worker, chunk_size=chunk_size, n_workers=n_workers)
+            run_parallel(input_path, worker, buffer_size=buffer_size, n_workers=n_workers)
         )
         logger.info("concatenating %d chunks → %s", len(temp_paths), output_path)
         with open(output_path, 'wb') as fout:
