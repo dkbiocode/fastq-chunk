@@ -3,11 +3,12 @@ import collections
 import logging
 import os
 import tracemalloc
-from concurrent.futures import Executor, ThreadPoolExecutor
+from concurrent.futures import Executor, ThreadPoolExecutor, ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Callable, Iterator, TypeVar, Tuple
 
 import dnaio
+import xopen
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,22 @@ def iter_chunks_paired(
                 chunk1, chunk2 = [], []
     if chunk1:
         yield chunk1, chunk2
+
+
+def iter_byte_chunks_paired(
+    fastq_path1: str | os.PathLike,
+    fastq_path2: str | os.PathLike,
+    buffer_size: int = 4 * 1024 * 1024,
+) -> Iterator[tuple[bytes, bytes]]:
+    """Yield (r1_bytes, r2_bytes) chunks of raw FASTQ data, paired and synchronized.
+
+    Each chunk is a bytes copy of an internal memoryview, safe to pass to worker
+    processes. Workers parse the bytes themselves using dnaio.open(io.BytesIO(...)).
+    """
+    with xopen.xopen(fastq_path1, "rb", threads=1) as f1, \
+         xopen.xopen(fastq_path2, "rb", threads=1) as f2:
+        for chunk1_mv, chunk2_mv in dnaio.read_paired_chunks(f1, f2, buffer_size):
+            yield bytes(chunk1_mv), bytes(chunk2_mv)
 
 
 def get_read_dimensions(
@@ -164,29 +181,32 @@ def run_parallel(
 def run_parallel_paired(
     fastq_path1: str | os.PathLike,
     fastq_path2: str | os.PathLike,
-    worker: Callable[[list[FastqRecord], list[FastqRecord], int], T],
+    worker: Callable[[bytes, bytes, int], T],
     *,
-    chunk_size: int,
+    buffer_size: int = 4 * 1024 * 1024,
     n_workers: int = 4,
-    executor_class: Callable[..., Executor] = ThreadPoolExecutor,
+    executor_class: Callable[..., Executor] = ProcessPoolExecutor,
 ) -> Iterator[T]:
-    """Dispatch paired-end chunks to a pool, yielding results in submission order.
+    """Dispatch paired-end byte chunks to a pool, yielding results in submission order.
 
-    Sliding-window: at most n_workers chunk-pairs are in memory at once, so the
-    caller's memory budget (used to calculate chunk_size) is respected.
+    Sliding-window: at most n_workers chunk-pairs are in memory at once.
 
-    worker signature: (r1_chunk: list[FastqRecord], r2_chunk: list[FastqRecord], chunk_idx: int) -> T
+    worker signature: (r1_bytes: bytes, r2_bytes: bytes, chunk_idx: int) -> T
+    Workers are responsible for parsing the bytes (e.g., with
+    dnaio.open(io.BytesIO(r1_bytes), io.BytesIO(r2_bytes))).
     Bind extra context (params, output paths, etc.) with functools.partial.
 
-    executor_class: ThreadPoolExecutor (default, I/O-bound) or
-        ProcessPoolExecutor (CPU-bound). With ProcessPoolExecutor, worker
-        must be picklable — module-level functools.partial works; lambdas
-        and closures do not.
+    executor_class: ProcessPoolExecutor (default, CPU-bound) or
+        ThreadPoolExecutor (for I/O-bound user code). With ProcessPoolExecutor,
+        worker must be picklable — module-level functools.partial works;
+        lambdas and closures do not.
     """
     with executor_class(max_workers=n_workers) as pool:
         pending: collections.deque = collections.deque()
-        for idx, (chunk_l, chunk_r) in enumerate(iter_chunks_paired(fastq_path1,fastq_path2, chunk_size)):
-            pending.append(pool.submit(worker, chunk_l, chunk_r, idx))
+        for idx, (chunk1_bytes, chunk2_bytes) in enumerate(
+            iter_byte_chunks_paired(fastq_path1, fastq_path2, buffer_size)
+        ):
+            pending.append(pool.submit(worker, chunk1_bytes, chunk2_bytes, idx))
             while len(pending) >= n_workers:
                 yield pending.popleft().result()
         while pending:

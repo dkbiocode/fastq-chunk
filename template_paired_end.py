@@ -9,6 +9,8 @@ import tempfile
 import re
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
+import dnaio
+import io
 
 from fastq_chunk import FastqRecord, get_read_dimensions, calculate_chunk_size, run_parallel_paired
 
@@ -19,7 +21,7 @@ def min_qual(s): # s - string of quality symbols, like "FFFFF:FFF,"
     q = list(map(ord,l)) # ord() returns the ASCII value for a character. See ASCII character table for more info.
     return min(q) - 33   # Phred33 is the ascii value minus 33.
 
-def extract_codes_from_chunk_pair(F1:list[FastqRecord], F2:list[FastqRecord], chunk_ix:int,
+def extract_codes_from_chunk_pair(chunk1_bytes: bytes, chunk2_bytes: bytes, chunk_ix:int,
     *, temp_dir: str,
     ) -> str:
     # search for viral barcode
@@ -34,52 +36,53 @@ def extract_codes_from_chunk_pair(F1:list[FastqRecord], F2:list[FastqRecord], ch
                ] 
     data_rows = []
 
-    for read_ix, (r1,r2) in enumerate(zip(F1,F2)):
-        # ensure pairing
-        assert r1.name == r2.name
+    with dnaio.open(io.BytesIO(chunk1_bytes), io.BytesIO(chunk2_bytes)) as reader:
+        for read_ix, (r1, r2) in enumerate(reader):
+            # ensure pairing
+            assert r1.name == r2.name
 
-        # search for virus
-        match = wnv_pattern.search(r2.sequence)
-        if match:
-            s,e = match.start(), match.end()
-        else:
-            continue
+            # search for virus
+            match = wnv_pattern.search(r2.sequence)
+            if match:
+                s,e = match.start(), match.end()
+            else:
+                continue
 
-        # get info from the sequences
-        viral_sequence = r2.sequence[s:e]
-        viral_quality = r2.qualities[s:e]
-        
-        # extract barcodes by given positions (0-based; end exclusive)
-        cell_sequence = r1.sequence[:15]
-        umi_sequence  = r1.sequence[15:26]
-        cell_quality = r1.qualities[:15]
-        umi_quality  = r1.qualities[15:26]
+            # get info from the sequences
+            viral_sequence = r2.sequence[s:e]
+            viral_quality = r2.qualities[s:e]
+            
+            # extract barcodes by given positions (0-based; end exclusive)
+            cell_sequence = r1.sequence[:15]
+            umi_sequence  = r1.sequence[15:26]
+            cell_quality = r1.qualities[:15]
+            umi_quality  = r1.qualities[15:26]
 
-        # minimum qualities 
-        min_cell_quality = min_qual(cell_quality)
-        min_umi_quality = min_qual(umi_quality)
-        min_viral_quality = min_qual(viral_quality)
+            # minimum qualities 
+            min_cell_quality = min_qual(cell_quality)
+            min_umi_quality = min_qual(umi_quality)
+            min_viral_quality = min_qual(viral_quality)
 
-        # split header info
-        try:
-            position_info = r1.name.split()[1]
-            instrument,run,flowcell,lane,tile,x,y = position_info.split(':')
-        except:
-            logging.error(f"Couldn't parse header in {chunk_ix=}; {read_ix=}; {r1.name}")
-            raise ValueError
-        
-        data_rows.append(
-            dict(
-                zip(COLUMNS, # list values in the same order as the COLUMNS  
-                [
-                    viral_sequence, cell_sequence, umi_sequence,        # sequences
-                    viral_quality,  cell_quality,  umi_quality,         # qualities
-                    min_cell_quality,min_umi_quality,min_viral_quality, # min qualities
-                    run,flowcell,lane,tile,x,y                          # location
-                ] 
+            # split header info
+            try:
+                position_info = r1.name.split()[1]
+                instrument,run,flowcell,lane,tile,x,y = position_info.split(':')
+            except:
+                logging.error(f"Couldn't parse header in {chunk_ix=}; {read_ix=}; {r1.name}")
+                raise ValueError
+            
+            data_rows.append(
+                dict(
+                    zip(COLUMNS, # list values in the same order as the COLUMNS  
+                    [
+                        viral_sequence, cell_sequence, umi_sequence,        # sequences
+                        viral_quality,  cell_quality,  umi_quality,         # qualities
+                        min_cell_quality,min_umi_quality,min_viral_quality, # min qualities
+                        run,flowcell,lane,tile,x,y                          # location
+                    ] 
+                    )
                 )
             )
-        )
     out_path = os.path.join(temp_dir, f"chunk_{chunk_ix:06d}.tsv")
     pd.DataFrame(data_rows, columns=COLUMNS).to_csv(out_path, sep="\t")
     return out_path
@@ -102,7 +105,6 @@ def main() -> None:
         chunk_paths = list(
             run_parallel_paired(INPUT_PATH_R1, INPUT_PATH_R2, 
                     worker,
-                    chunk_size=chunk_size,
                     n_workers=N_WORKERS,
                     executor_class = ProcessPoolExecutor))
         
